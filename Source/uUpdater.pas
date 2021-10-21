@@ -28,8 +28,13 @@ type TUpdater = class
     /// <returns>Returns True on no errors</returns>
     function LoadUpdateFile (sFN : string) : Boolean;
   public
+    /// <summary>
+    /// Constructor, creates object of class and set initial values
+    /// </summary>
+    /// <param name="siRP">"Remote" path (there we get updates)</param>
+    /// <param name="siLP">Local path (path to folder parent for update folder, usually it's application folder)</param>
     constructor Create (siRP, siLP : string);
-    destructor Destroy; override;
+//    destructor Destroy; override;
     procedure CheckUpdates;
     function LoadUpdatesCAB (sCABName : string) : Boolean;
     function InstallUpdates : Boolean;
@@ -195,11 +200,11 @@ begin
   end;
 end;
 
-destructor TUpdater.Destroy;
-begin
+//destructor TUpdater.Destroy;
+//begin
 //  FreeAndNil(UpdateList);
-  inherited Destroy;
-end;
+//  inherited Destroy;
+//end;
 
 procedure TUpdater.CheckUpdates;
 begin
