@@ -16,17 +16,20 @@ type TUpdater = class
     FsUsername : string; //username for remote login
     FsPassword : string; //password for remote login
     FsPath : string; //path to remote resource (f.ex path on ftp server)
+
     /// <summary>
     /// Compare local and remote versions in format x.x.x.x
     /// </summary>
     /// <returns>Return True if remote version is higher</returns>
     function CompareVersions : Boolean;
+
     /// <summary>
     /// Loading given update file to \update\ folder
     /// </summary>
     /// <param name="sFN">File name</param>
+    /// <param name="sPathToFile">Relative path to file, empty by default</param>
     /// <returns>Returns True on no errors</returns>
-    function LoadUpdateFile (sFN : string) : Boolean;
+    function LoadUpdateFile (sFN : string; sPathToFile : string = '') : Boolean;
   public
     /// <summary>
     /// Constructor, creates object of class and set initial values
@@ -35,11 +38,33 @@ type TUpdater = class
     /// <param name="siLP">Local path (path to folder parent for update folder, usually it's application folder)</param>
     constructor Create (siRP, siLP : string);
 //    destructor Destroy; override;
+
+    /// <summary>
+    /// CComparing remote and local versions, set NeedUpdate property true if remote version is higher
+    /// </summary>
     procedure CheckUpdates;
-    function LoadUpdatesCAB (sCABName : string) : Boolean;
+
+    /// <summary>
+    ///   Updating application files from \update\tmp directory
+    /// </summary>
+    /// <returns>Returns True on update without errors</returns>
     function InstallUpdates : Boolean;
+
+    /// <summary>
+    /// Loading zip file with updates and extract it into \update\tmp directory
+    /// </summary>
+    /// <param name="sZipName">zip filename</param>
+    /// <returns>Returns True on no errors</returns>
     function LoadUpdatesZip (sZipName : string) : Boolean;
+
+    /// <summary>
+    ///   Complex function for updating from zip file.
+    ///   Check versions, if remote is higher load file remote_version_number.zip (f.ex 0.0.0.1.zip),
+    ///   extract updates into \update\tmp directory, then update apllication files
+    /// </summary>
+    /// <returns>Returns True on no errors</returns>
     function UpdateFromZip : Boolean;
+
     property sRP : string read FsRP write FsRP;
     property sLP : string read FsLP write FsLP;
 //    property UpdateList : TStringList read FUpdateList write FUpdateList;
@@ -54,7 +79,7 @@ type TUpdater = class
 end;
 
 implementation
-uses idHTTP, IdFTP, IdFTPCommon, IdSSLOpenSSL, VCL.Dialogs, SysUtils, IOUtils, AbCabExt, Windows, Zip, StrUtils, System.Net.URLClient;
+uses idHTTP, IdFTP, IdFTPCommon, IdSSLOpenSSL, VCL.Dialogs, SysUtils, IOUtils, Windows, Zip, StrUtils, System.Net.URLClient;
 
 function TUpdater.CompareVersions : Boolean;
 var
@@ -74,15 +99,23 @@ begin
       Break;
 end;
 
-function TUpdater.LoadUpdateFile (sFN : string) : Boolean;
+function TUpdater.LoadUpdateFile (sFN : string; sPathToFile : string = '') : Boolean;
 begin
   Result := False;
   case RemoteProtocol of
-    0   :
+    0, 4:
       begin
-
+        try
+          TFile.Copy(sRP + sPathToFile + sFN, sLP + '\update\' + sPathToFile + sFN, True);
+        except
+          on E : Exception do
+            begin
+              ShowMessage('Can''t copy update file ' + sFN + ' , error: ' + E.Message);
+              Exit;
+            end;
+        end;
       end;
-    1,2 :
+    1, 2:
       begin
         with TIdHTTP.Create do
           try
@@ -97,7 +130,7 @@ begin
             except
               on E : Exception do
                 begin
-                  ShowMessage('Can''t download remote update file ' + sFN + ' via HTTP/HTTPS, error: ' + E.Message);
+                  ShowMessage('Can''t download remote update file ' + sFN + ' via ' + IfThen(RemoteProtocol = 2, 'HTTP', 'HTTPS') + ', error: ' + E.Message);
                   Exit;
                 end;
             end;
@@ -131,10 +164,6 @@ begin
             Free;
           end;
       end;
-    4   :
-      begin
-
-      end;
   end;
   Result := True;
 end;
@@ -147,7 +176,6 @@ begin
   sLP := IfThen(siLP = '', ExtractFileDir(ParamStr(0)), siLP);
   RemoteVersion := '';
 //  UpdateList := TStringList.Create;
-
   if siRP.IndexOf('https') = 0 then
     begin
       sRP := siRP;
@@ -209,11 +237,11 @@ end;
 procedure TUpdater.CheckUpdates;
 begin
   case RemoteProtocol of
-    0   :
+    0, 4:
       begin
-
+        RemoteVersion := TFile.ReadAllText(sRP + 'version');
       end;
-    1,2 :
+    1, 2:
       begin
         with TIdHTTP.Create do
           try
@@ -229,7 +257,7 @@ begin
             except
               on E : Exception do
                 begin
-                  ShowMessage('Can''t download remote version file HTTP/HTTPS, error: ' + E.Message);
+                  ShowMessage('Can''t download remote version file via ' + IfThen(RemoteProtocol = 2, 'HTTP', 'HTTPS') + ', error: ' + E.Message);
                   Exit;
                 end;
             end;
@@ -254,7 +282,7 @@ begin
             except
               on E : Exception do
                 begin
-                  ShowMessage('Can''t download remote version file FTP, error: ' + E.Message);
+                  ShowMessage('Can''t download remote version file via FTP, error: ' + E.Message);
                   Exit;
                 end;
             end;
@@ -264,55 +292,11 @@ begin
             Free;
           end;
       end;
-    4   :
-      begin
-
-      end;
   end;
   if CompareVersions then
     NeedUpdate := True;
 
 end;
-
-function TUpdater.LoadUpdatesCAB (sCABName : string) : Boolean;
-  var fs : TFileStream;
-begin
-  Result := False;
-  fs := TFileStream.Create(sLP + '\update\' + sCABName, fmCreate);
-  with TIdHTTP.Create do
-    try
-      try
-        Get(sRP + sCABName, fs);
-      except
-        on E : Exception do
-          begin
-            ShowMessage('Can''t download updates CAB file, error: ' + E.Message);
-            Exit;
-          end;
-      end;
-    finally
-      Free;
-      fs.Free;
-    end;
-  with TAbCabExtractor.Create(nil) do
-    try
-      try
-        OpenArchive(sLP + '\update\' + sCABName);
-        BaseDirectory := sLP + '\update\tmp\';
-        ExtractFiles('*.*');
-      except
-        on E : Exception do
-          begin
-            ShowMessage('Can''t extract updates CAB file, error: ' + E.Message);
-            Exit;
-          end;
-      end;
-      Result := True;
-    finally
-      Free;
-    end;
-end;
-
 
 function TUpdater.LoadUpdatesZip (sZipName : string) : Boolean;
 begin
@@ -360,9 +344,8 @@ begin
   except
     on E: Exception do
       begin
-        if TFile.Exists(ParamStr(0)) then
-
-        RenameFile(ParamStr(0) + '.old', ParamStr(0));
+        if not TFile.Exists(ParamStr(0)) then
+          RenameFile(ParamStr(0) + '.old', ParamStr(0));
         ShowMessage('Can''t update files');
         Exit;
       end;
