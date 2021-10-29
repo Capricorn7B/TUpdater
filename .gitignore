@@ -72,3 +72,11 @@ Demo/Update/Updater.res
 Demo/Update/Win32/Debug/Old/test/version
 Demo/Update/Win32/Debug/ssleay32.dll
 Demo/Update/Win32/Debug/libeay32.dll
+Demo/Update/Win32/Debug/RemoteUpdate/mongoose.conf
+Demo/Update/Win32/Debug/test/ssleay32.dll
+Demo/Update/Win32/Debug/test/libeay32.dll
+Demo/Update/Win32/Debug/RemoteUpdate/test/version
+Demo/Update/Win32/Debug/1/libeay32.dll
+Demo/Update/Win32/Debug/1/ssleay32.dll
+Demo/Update/Win32/Debug/1/test/libeay32.dll
+Demo/Update/Win32/Debug/1/test/ssleay32.dll

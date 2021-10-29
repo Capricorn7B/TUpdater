@@ -35,9 +35,11 @@ begin
       if UpdateFromZip then
         begin
           ShowMessage('Application restart');
-          ShellExecute(0, 'open', PWideChar(Paramstr(0) + ' /update'), nil, nil, SW_SHOWNORMAL);
+          ShellExecute(0, 'open', PWideChar(Paramstr(0)), PWideChar('/update'), nil, SW_SHOWNORMAL);
           Application.Terminate;
-        end;
+        end
+      else
+        ShowMessage('No updates');
       Free;
     end;
 
@@ -45,7 +47,7 @@ end;
 
 procedure TfrmCheckUpdates.FormCreate(Sender: TObject);
 begin
-  if Paramstr(1) = '/update' then
+  if (ParamCount > 1) and (Paramstr(1) = '/update') then
     ShowMessage('Application updated');
 end;
 

@@ -24,7 +24,7 @@ type TUpdater = class
     function CompareVersions : Boolean;
 
     /// <summary>
-    /// Loading given update file to \update\ folder
+    /// Loading given update file to update folder
     /// </summary>
     /// <param name="sFN">File name</param>
     /// <param name="sPathToFile">Relative path to file, empty by default</param>
@@ -45,13 +45,13 @@ type TUpdater = class
     procedure CheckUpdates;
 
     /// <summary>
-    ///   Updating application files from \update\tmp directory
+    ///   Updating application files from update\tmp directory
     /// </summary>
     /// <returns>Returns True on update without errors</returns>
     function InstallUpdates : Boolean;
 
     /// <summary>
-    /// Loading zip file with updates and extract it into \update\tmp directory
+    /// Loading zip file with updates and extract it into update\tmp directory
     /// </summary>
     /// <param name="sZipName">zip filename</param>
     /// <returns>Returns True on no errors</returns>
@@ -60,12 +60,17 @@ type TUpdater = class
     /// <summary>
     ///   Complex function for updating from zip file.
     ///   Check versions, if remote is higher load file remote_version_number.zip (f.ex 0.0.0.1.zip),
-    ///   extract updates into \update\tmp directory, then update apllication files
+    ///   extract updates into update\tmp directory, then update apllication files
     /// </summary>
     /// <returns>Returns True on no errors</returns>
     function UpdateFromZip : Boolean;
-
+    /// <summary>
+    /// Property for storing path to remote updates
+    /// </summary>
     property sRP : string read FsRP write FsRP;
+    /// <summary>
+    /// Property for storing path to local updates
+    /// </summary>
     property sLP : string read FsLP write FsLP;
 //    property UpdateList : TStringList read FUpdateList write FUpdateList;
     property NeedUpdate : Boolean read FNeedUpdate write FNeedUpdate default False;
@@ -106,7 +111,7 @@ begin
     0, 4:
       begin
         try
-          TFile.Copy(sRP + sPathToFile + sFN, sLP + '\update\' + sPathToFile + sFN, True);
+          TFile.Copy(sRP + sPathToFile + sFN, sLP + sPathToFile + sFN, True);
         except
           on E : Exception do
             begin
@@ -125,7 +130,7 @@ begin
                   IOHandler := TIdSSLIOHandlerSocketOpenSSL.Create;
                   (IOHandler as TIdSSLIOHandlerSocketOpenSSL).SSLOptions.SSLVersions := [sslvSSLv2, sslvSSLv23, sslvSSLv3, sslvTLSv1, sslvTLSv1_1, sslvTLSv1_2];
                 end;
-              var fs := TFileStream.Create(sLP + '\update\'  + sFN, fmCreate);
+              var fs := TFileStream.Create(sLP + sFN, fmCreate);
               Get(sRP + sFN, fs);
             except
               on E : Exception do
@@ -150,7 +155,7 @@ begin
             Password := sPassword;
             try
               Connect;
-              Get(sPath + sFN, sLP + '\update\'  + sFN, True, False);
+              Get(sPath + sFN, sLP + sFN, True, False);
             except
               on E : Exception do
                 begin
@@ -173,7 +178,10 @@ begin
   if siRP = '' then
     raise Exception.Create('Set path to remote update dir!');
   inherited Create;
-  sLP := IfThen(siLP = '', ExtractFileDir(ParamStr(0)), siLP);
+  if siLP = '' then
+    sLP := ExtractFilePath(ParamStr(0)) + 'update\'
+  else
+    sLP := siLP;
   RemoteVersion := '';
 //  UpdateList := TStringList.Create;
   if siRP.IndexOf('https') = 0 then
@@ -211,17 +219,21 @@ begin
         raise Exception.Create('Wrong path to update files!');
     end;
   try
-    if TFile.Exists(sLP + '\update\version') then
-      LocalVersion := TFile.ReadAllText(sLP  + '\update\version')
+    if TFile.Exists(sLP + 'version') then
+      LocalVersion := TFile.ReadAllText(sLP  + 'version')
     else
       LocalVersion := '0.0.0.0';
-    if TDirectory.Exists(sLP + '\update\') then
-      TDirectory.Delete(sLP + '\update\', True);
-    TDirectory.CreateDirectory(sLP + '\update\');
-    TDirectory.CreateDirectory(sLP + '\update\tmp\');
+    if TDirectory.Exists(sLP) then
+      TDirectory.Delete(sLP, True);
+    repeat
+      TDirectory.CreateDirectory(sLP);
+    until TDirectory.Exists(sLP);
+    repeat
+      TDirectory.CreateDirectory(sLP + 'tmp\');
+    until TDirectory.Exists(sLP + 'tmp\');
     if TFile.Exists(ParamStr(0) + '.old') then
       TFile.Delete(ParamStr(0) + '.old');
-    TFile.WriteAllText(sLP + '\update\version',LocalVersion);
+    TFile.WriteAllText(sLP + 'version', LocalVersion);
   except
     on E : Exception do
       ShowMessage('Error updater create/deleting tmp files: ' + E.Message);
@@ -277,8 +289,8 @@ begin
             Password := sPassword;
             try
               Connect;
-              Get(sPath + 'version', sLP + '\update\version.rt',True, False);
-              RemoteVersion := TFile.ReadAllText(sLP + '\update\version.rt');
+              Get(sPath + 'version', sLP + 'version.rt', True, False);
+              RemoteVersion := TFile.ReadAllText(sLP + 'version.rt');
             except
               on E : Exception do
                 begin
@@ -293,9 +305,7 @@ begin
           end;
       end;
   end;
-  if CompareVersions then
-    NeedUpdate := True;
-
+  NeedUpdate := CompareVersions;
 end;
 
 function TUpdater.LoadUpdatesZip (sZipName : string) : Boolean;
@@ -305,8 +315,8 @@ begin
     with TZipFile.Create do
       try
         try
-          Open(sLP + '\update\' + sZipName, zmRead);
-          ExtractAll(sLP + '\update\tmp\');
+          Open(sLP + sZipName, zmRead);
+          ExtractAll(sLP + 'tmp\');
         except
           on E : Exception do
             begin
@@ -323,13 +333,13 @@ end;
 function TUpdater.InstallUpdates : Boolean;
 begin
   Result := False;
-  if TDirectory.IsEmpty(sLP + '\update\tmp\') then
+  if TDirectory.IsEmpty(sLP + 'tmp\') then
     begin
       ShowMessage('tmp directory is empty!');
       Exit;
     end;
 
-  if FileExists(ParamStr(0)) and FileExists(sLP + '\update\tmp\' + ExtractFileName(ParamStr(0))) then
+  if FileExists(ParamStr(0)) and FileExists(sLP + 'tmp\' + ExtractFileName(ParamStr(0))) then
     try
       RenameFile(ParamStr(0), ParamStr(0) + '.old');
     except
@@ -340,11 +350,11 @@ begin
         end;
     end;
   try
-    TDirectory.Copy(sLP + '\update\tmp\', sLP + '\');
+    TDirectory.Copy(sLP + 'tmp\', ExtractFilePath(ParamStr(0)) + '\');
   except
     on E: Exception do
       begin
-        if not TFile.Exists(ParamStr(0)) then
+        if (not TFile.Exists(ParamStr(0))) and TFile.Exists(ParamStr(0) + '.old') then
           RenameFile(ParamStr(0) + '.old', ParamStr(0));
         ShowMessage('Can''t update files');
         Exit;
@@ -352,7 +362,7 @@ begin
   end;
   NeedUpdate := False;
   LocalVersion := RemoteVersion;
-  TFile.WriteAllText(sLP + '\update\version', LocalVersion);
+  TFile.WriteAllText(sLP + 'version', LocalVersion);
   Result := True;
 end;
 
