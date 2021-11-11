@@ -47,7 +47,7 @@ end;
 
 procedure TfrmCheckUpdates.FormCreate(Sender: TObject);
 begin
-  if (ParamCount > 1) and (Paramstr(1) = '/update') then
+  if (ParamCount > 0) and (Paramstr(1) = '/update') then
     ShowMessage('Application updated');
 end;
 
